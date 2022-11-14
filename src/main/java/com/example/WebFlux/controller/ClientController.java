@@ -6,9 +6,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/clients")
@@ -27,10 +30,14 @@ public class ClientController {
     }
 
     @PostMapping
-    public Mono<ResponseEntity<Client>> registrar(@RequestBody Client client){
+    public Mono<ResponseEntity<Client>> registrar(@RequestBody Client client, final ServerHttpRequest request){
         return service.registrar(client)
                 .map(newClient ->
-                        ResponseEntity.ok()
+                        ResponseEntity.created(URI.create(request.getURI()
+                                        .toString()
+                                        .concat("/")
+
+                                        .concat(newClient.getId())))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .body(newClient))
                 .defaultIfEmpty(ResponseEntity.noContent().build());
@@ -69,11 +76,18 @@ public Mono<ResponseEntity<Client>> buscarPorId(@PathVariable(value = "id") Stri
 
     @DeleteMapping("/{id}")
     public Mono<ResponseEntity<Void>> eliminarClient(@PathVariable(value = "id") String id){
-        return service.eliminar(id)
+       /* return service.eliminar(id)
                 .map(cliDelete -> ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(cliDelete))
-                .defaultIfEmpty(ResponseEntity.noContent().build());
+                .defaultIfEmpty(ResponseEntity.noContent().build());*/
+
+        return service.listarPorId(id)
+                .flatMap(c -> {
+                    return service.eliminar(c.getId())
+                            .then(Mono.just( new ResponseEntity<Void>(HttpStatus.NO_CONTENT)));
+                })
+                .defaultIfEmpty(new ResponseEntity<Void>(HttpStatus.NOT_FOUND));
     }
 
 }
